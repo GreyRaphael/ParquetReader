@@ -1,0 +1,45 @@
+import { StandardTableView, Button} from "std-widgets.slint";
+
+export component Example inherits Window {
+    width: 1600px;
+    height: 600px;
+    title: "parquet reader";
+    callback button_pressed<=>btn.clicked;
+    in-out property <[TableColumn]> headers<=>tb1.columns;
+    in-out property <[[StandardListViewItem]]> datas<=>tb1.rows;
+
+    VerticalLayout {
+      btn:=Button {
+        text: "click me";
+        clicked => {
+          tb1.columns=[
+            { title: "Header 11" },
+            { title: "Header 22" },
+            { title: "Header 33" },
+          ];
+          tb1.rows=[
+            [{text:"value2"},{text:"value2"},{text:"value2"},],
+            [{text:"value2"},{text:"value2"},{text:"value2"},],
+            [{text:"value2"},{text:"value2"},{text:"value2"},],
+            [{text:"value2"},{text:"value2"},{text:"value2"},],
+          ];
+        }
+      }
+      tb1:=StandardTableView {
+        width: root.width;
+        height: root.height;
+        columns: [
+            { title: "Header 1" },
+            { title: "Header 2" },
+            { title: "Header 3" },
+            { title: "Header 4" },
+        ];
+        rows: [
+          [{text:"value1"},{text:"value1"},{text:"value1"},{text:"value1"},],
+          [{text:"value1"},{text:"value1"},{text:"value1"},{text:"value1"},],
+          [{text:"value1"},{text:"value1"},{text:"value1"},{text:"value1"},],
+          [{text:"value1"},{text:"value1"},{text:"value1"},{text:"value1"},],
+        ];
+    }
+    }
+}
