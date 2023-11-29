@@ -27,11 +27,11 @@ fn read_duck_schema(filename: &str) -> Result<Schema> {
         ("UBIGINT", "u64"),
         ("REAL", "f32"),
         ("DOUBLE", "f64"),
-        ("DECIMAL", "Decimal"),
+        ("DECIMAL", "decimal"),
         ("DATE", "i32"),
         ("TIME", "time"),
         ("TIMESTAMP", "datetime"),
-        ("VARCHAR", "Utf8"),
+        ("VARCHAR", "utf8"),
         ("BLOB", "Vec<u8>"),
     ]);
 
@@ -40,14 +40,17 @@ fn read_duck_schema(filename: &str) -> Result<Schema> {
     let mut stmt = conn.prepare(&schema_sql)?;
     let mut rows = stmt.query([])?;
 
-    let mut column_names = Vec::new();
-    let mut column_types = Vec::new();
+    let mut schema = Schema {
+        column_names: Vec::new(),
+        column_types: Vec::new(),
+    };
     while let Some(row) = rows.next()? {
-        column_names.push(row.get::<_, String>(0)?);
-        column_types.push(row.get::<_, String>(1)?);
+        schema.column_names.push(row.get::<_, String>(0)?);
+        schema.column_types.push(row.get::<_, String>(1)?);
     }
-    println!("{:?}", column_types);
-    let col_types: Vec<String> = column_types
+
+    schema.column_types = schema
+        .column_types
         .into_iter()
         .map(|item| {
             type_dict
@@ -56,10 +59,6 @@ fn read_duck_schema(filename: &str) -> Result<Schema> {
                 .to_string()
         })
         .collect();
-    let schema = Schema {
-        column_names: column_names,
-        column_types: col_types,
-    };
 
     Ok(schema)
 }
