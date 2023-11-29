@@ -15,30 +15,25 @@ struct Schema {
 
 fn read_duck_schema(filename: &str) -> Result<Schema> {
     let type_dict = HashMap::from([
-        ("Boolean", "bool"),
-        ("TinyInt", "i8"),
-        ("SmallInt", "i16"),
-        ("Int", "i32"),
-        ("BigInt", "i64"),
-        ("HugeInt", "i128"),
-        ("UTinyInt", "u8"),
-        ("USmallInt", "u16"),
+        ("BOOLEAN", "bool"),
+        ("TINYINT", "i8"),
+        ("SMALLINT", "i16"),
+        ("INTEGER", "i32"),
+        ("BIGINT", "i64"),
+        ("HUGEINT", "i128"),
+        ("UTINYINT", "u8"),
+        ("USMALLINT", "u16"),
         ("UINTEGER", "u32"),
-        ("UBigInt", "u64"),
-        ("Float", "f32"),
-        ("Double", "f64"),
-        ("Decimal", "Decimal"),
-        ("Timestamp", "Time64"),
+        ("UBIGINT", "u64"),
+        ("REAL", "f32"),
+        ("DOUBLE", "f64"),
+        ("DECIMAL", "Decimal"),
+        ("DATE", "i32"),
+        ("TIME", "time"),
+        ("TIMESTAMP", "datetime"),
         ("VARCHAR", "Utf8"),
-        ("Blob", "Vec<u8>"),
-        ("Date32", "i32"),
-        ("Time64", "Time64"),
+        ("BLOB", "Vec<u8>"),
     ]);
-
-    let type_dict_uppercase: HashMap<String, &str> = type_dict
-        .into_iter()
-        .map(|(key, value)| (key.to_uppercase(), value))
-        .collect();
 
     let conn = Connection::open_in_memory()?;
     let schema_sql = std::format!("DESCRIBE SELECT * FROM read_parquet({})", filename);
@@ -54,7 +49,12 @@ fn read_duck_schema(filename: &str) -> Result<Schema> {
     println!("{:?}", column_types);
     let col_types: Vec<String> = column_types
         .into_iter()
-        .map(|item| type_dict_uppercase.get(item.as_str()).unwrap().to_string())
+        .map(|item| {
+            type_dict
+                .get(item.as_str())
+                .unwrap_or(&item.as_str())
+                .to_string()
+        })
         .collect();
     let schema = Schema {
         column_names: column_names,
@@ -125,6 +125,7 @@ fn button_pressed_handler(recipe_weak: slint::Weak<Example>) -> impl Fn() {
         let table = read_duck_data(&filename, col_num).unwrap();
         println!("{:?}", table);
 
+        // init handler
         let recipe = recipe_weak.upgrade().unwrap();
 
         // fill data
