@@ -147,6 +147,25 @@ fn read_sqlite_schema(filename: &str, table_name: &str) -> Result<Schema> {
     Ok(schema)
 }
 
+fn read_sqlite_data(filename: &str, table_name: &str, col_num: usize) -> Result<Vec<Vec<Value>>> {
+    let conn = Connection::open_in_memory()?;
+    let data_sql = std::format!(
+        "SELECT * FROM sqlite_scan({},'{}') LIMIT 10",
+        filename,
+        table_name
+    );
+    let mut stmt = conn.prepare(&data_sql)?;
+    let mut rows = stmt.query([])?;
+
+    let mut table = Vec::new();
+    while let Some(row) = rows.next()? {
+        let row_data: Vec<Value> = (0..col_num).map(|i| row.get(i).unwrap()).collect();
+        table.push(row_data);
+    }
+
+    Ok(table)
+}
+
 fn test_table() {
     let path = FileDialog::new()
         .set_location("~")
@@ -303,5 +322,12 @@ fn main() {
     let v = read_sqlite_table_names("\"D:\\Dev\\sqlite-gui\\bookstore.sqlite\"");
     println!("{:?}", v);
     let v = read_sqlite_schema("\"D:\\Dev\\sqlite-gui\\bookstore.sqlite\"", "books");
+    println!("{:?}", v);
+    let col_num = v.unwrap().column_names.len();
+    let v = read_sqlite_data(
+        "\"D:\\Dev\\sqlite-gui\\bookstore.sqlite\"",
+        "books",
+        col_num,
+    );
     println!("{:?}", v);
 }
