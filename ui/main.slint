@@ -1,28 +1,26 @@
-import { StandardTableView, Button} from "std-widgets.slint";
+import { StandardTableView, Button, HorizontalBox} from "std-widgets.slint";
 
 export component Example inherits Window {
     width: 1600px;
     height: 600px;
     title: "parquet reader";
-    callback button_pressed<=>btn.clicked;
+    callback button_pressed<=>btn_open.clicked;
     in-out property <[TableColumn]> headers<=>tb1.columns;
     in-out property <[[StandardListViewItem]]> datas<=>tb1.rows;
 
     VerticalLayout {
-      btn:=Button {
-        text: "click me";
-        clicked => {
-          tb1.columns=[
-            { title: "Header 11" },
-            { title: "Header 22" },
-            { title: "Header 33" },
-          ];
-          tb1.rows=[
-            [{text:"value2"},{text:"value2"},{text:"value2"},],
-            [{text:"value2"},{text:"value2"},{text:"value2"},],
-            [{text:"value2"},{text:"value2"},{text:"value2"},],
-            [{text:"value2"},{text:"value2"},{text:"value2"},],
-          ];
+      HorizontalBox {
+        btn_open:=Button {
+          text: "Open";
+          width: 100px;
+        }
+        Button {
+          text: "Close";
+          width: 100px;
+          clicked => {
+            tb1.columns=[];
+            tb1.rows=[];
+          }
         }
       }
       tb1:=StandardTableView {
