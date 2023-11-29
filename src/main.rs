@@ -78,6 +78,21 @@ fn read_duck_data(filename: &str, col_num: usize) -> Result<Vec<Vec<Value>>> {
     Ok(table)
 }
 
+fn read_sqlite_tables(filename: &str) -> Result<Vec<String>> {
+    let conn = Connection::open_in_memory()?;
+    // load sqlite file
+    let pre_sql = std::format!("CALL sqlite_attach({});", filename);
+    conn.execute(&pre_sql, [])?;
+    // show all tables in sqlite
+    let mut stmt = conn.prepare("PRAGMA show_tables;")?;
+
+    let table_names = stmt
+        .query_map([], |row| Ok(row.get::<_, String>(0)?))?
+        .map(|row| row.unwrap())
+        .collect();
+    Ok(table_names)
+}
+
 fn test_table() {
     let path = FileDialog::new()
         .set_location("~")
@@ -225,9 +240,11 @@ fn create_list_view_item(cell: &Value) -> StandardListViewItem {
 }
 
 fn main() {
-    let recipe = Example::new().unwrap();
-    let recipe_weak = recipe.as_weak();
-    recipe.on_button_pressed(button_pressed_handler(recipe_weak));
-    recipe.run().unwrap();
+    // let recipe = Example::new().unwrap();
+    // let recipe_weak = recipe.as_weak();
+    // recipe.on_button_pressed(button_pressed_handler(recipe_weak));
+    // recipe.run().unwrap();
     // update_table();
+    let v = read_sqlite_tables("\"D:\\Dev\\sqlite-gui\\bookstore.sqlite\"");
+    println!("{:?}", v);
 }
