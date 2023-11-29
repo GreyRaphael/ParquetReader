@@ -72,10 +72,7 @@ fn read_duck_data(filename: &str, col_num: usize) -> Result<Vec<Vec<Value>>> {
 
     let mut table = Vec::new();
     while let Some(row) = rows.next()? {
-        let mut row_data = Vec::with_capacity(col_num);
-        for col_idx in 0..col_num {
-            row_data.push(row.get::<_, Value>(col_idx)?);
-        }
+        let row_data: Vec<Value> = (0..col_num).map(|i| row.get(i).unwrap()).collect();
         table.push(row_data);
     }
 
@@ -155,13 +152,10 @@ fn create_list_view_item(cell: &Value) -> StandardListViewItem {
     let formatted_value = match cell {
         Value::BigInt(v) => v.to_string(),
         Value::Int(v) => v.to_string(),
-        Value::Timestamp(TimeUnit::Microsecond, v) => {
-            // NaiveDateTime::from_timestamp_(v / 1_000_000, (v % 1_000_000) as u32 * 1_000)
-            NaiveDateTime::from_timestamp_micros(*v)
-                .unwrap()
-                .format("%Y-%m-%d %H:%M:%S%.6f")
-                .to_string()
-        }
+        Value::Timestamp(TimeUnit::Microsecond, v) => NaiveDateTime::from_timestamp_micros(*v)
+            .unwrap()
+            .format("%Y-%m-%d %H:%M:%S%.6f")
+            .to_string(),
         Value::UInt(v) => v.to_string(),
         Value::Text(v) => v.to_string(),
         _ => format!("{:?}", cell),
