@@ -1,11 +1,12 @@
 slint::include_modules!();
 
-use chrono::{NaiveDateTime, NaiveTime};
+use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use duckdb::{types::TimeUnit, types::Value, Connection, Result};
 use native_dialog::FileDialog;
 use slint::{StandardListViewItem, TableColumn, VecModel};
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::str::FromStr;
 
 #[derive(Debug)]
 struct Schema {
@@ -163,7 +164,10 @@ fn create_list_view_item(cell: &Value) -> StandardListViewItem {
         Value::Double(v) => v.to_string(),
         Value::Decimal(v) => v.to_string(),
 
-        Value::Date32(v) => v.to_string(),
+        Value::Date32(v) => NaiveDateTime::from_timestamp_opt((v * 24 * 3600) as i64, 0)
+            .unwrap()
+            .date()
+            .to_string(),
         Value::Time64(TimeUnit::Nanosecond, v) => NaiveTime::from_num_seconds_from_midnight_opt(
             (v / 1_000_000_000) as u32,
             (v % 1_000_000_000) as u32,
@@ -172,18 +176,19 @@ fn create_list_view_item(cell: &Value) -> StandardListViewItem {
         .format("%H:%M:%S%.9f")
         .to_string(),
         Value::Time64(TimeUnit::Microsecond, v) => NaiveTime::from_num_seconds_from_midnight_opt(
-            (v / 1_000_1000) as u32,
-            (v % 1_000_1000) as u32,
+            (v / 1_000_000) as u32,
+            (v * 1_000 % 1_000_000_000) as u32,
         )
         .unwrap()
         .format("%H:%M:%S%.6f")
         .to_string(),
-        Value::Time64(TimeUnit::Millisecond, v) => {
-            NaiveTime::from_num_seconds_from_midnight_opt((v / 1_000) as u32, (v % 1_000) as u32)
-                .unwrap()
-                .format("%H:%M:%S%.3f")
-                .to_string()
-        }
+        Value::Time64(TimeUnit::Millisecond, v) => NaiveTime::from_num_seconds_from_midnight_opt(
+            (v / 1_000) as u32,
+            (v * 1_000_000 % 1_000_000_000) as u32,
+        )
+        .unwrap()
+        .format("%H:%M:%S%.3f")
+        .to_string(),
         Value::Time64(TimeUnit::Second, v) => {
             NaiveTime::from_num_seconds_from_midnight_opt(*v as u32, 0)
                 .unwrap()
@@ -197,13 +202,13 @@ fn create_list_view_item(cell: &Value) -> StandardListViewItem {
                 .to_string()
         }
         Value::Timestamp(TimeUnit::Microsecond, v) => {
-            NaiveDateTime::from_timestamp_opt(v / 1_000_000, (v % 1_000_000) as u32)
+            NaiveDateTime::from_timestamp_opt(v / 1_000_000, (v * 1_000 % 1_000_000_000) as u32)
                 .unwrap()
                 .format("%Y-%m-%d %H:%M:%S%.6f")
                 .to_string()
         }
         Value::Timestamp(TimeUnit::Millisecond, v) => {
-            NaiveDateTime::from_timestamp_opt(v / 1_000, (v % 1_000) as u32)
+            NaiveDateTime::from_timestamp_opt(v / 1_000, (v * 1_000_000 % 1_000_000_000) as u32)
                 .unwrap()
                 .format("%Y-%m-%d %H:%M:%S%.3f")
                 .to_string()
