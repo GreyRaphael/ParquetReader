@@ -1,12 +1,11 @@
 slint::include_modules!();
 
-use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
+use chrono::{NaiveDateTime, NaiveTime};
 use duckdb::{types::TimeUnit, types::Value, Connection, Result};
 use native_dialog::FileDialog;
 use slint::{StandardListViewItem, TableColumn, VecModel};
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::str::FromStr;
 
 #[derive(Debug)]
 struct Schema {
