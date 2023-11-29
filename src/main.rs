@@ -1,6 +1,6 @@
 slint::include_modules!();
 
-use chrono::NaiveDateTime;
+use chrono::{NaiveDateTime, NaiveTime};
 use duckdb::{types::TimeUnit, types::Value, Connection, Result};
 use native_dialog::FileDialog;
 use slint::{StandardListViewItem, TableColumn, VecModel};
@@ -149,14 +149,71 @@ fn button_pressed_handler(recipe_weak: slint::Weak<Example>) -> impl Fn() {
 
 fn create_list_view_item(cell: &Value) -> StandardListViewItem {
     let formatted_value = match cell {
-        Value::BigInt(v) => v.to_string(),
+        Value::Boolean(v) => v.to_string(),
+        Value::TinyInt(v) => v.to_string(),
+        Value::SmallInt(v) => v.to_string(),
         Value::Int(v) => v.to_string(),
-        Value::Timestamp(TimeUnit::Microsecond, v) => NaiveDateTime::from_timestamp_micros(*v)
-            .unwrap()
-            .format("%Y-%m-%d %H:%M:%S%.6f")
-            .to_string(),
+        Value::BigInt(v) => v.to_string(),
+        Value::HugeInt(v) => v.to_string(),
+        Value::UTinyInt(v) => v.to_string(),
+        Value::USmallInt(v) => v.to_string(),
         Value::UInt(v) => v.to_string(),
+        Value::UBigInt(v) => v.to_string(),
+        Value::Float(v) => v.to_string(),
+        Value::Double(v) => v.to_string(),
+        Value::Decimal(v) => v.to_string(),
+
+        Value::Date32(v) => v.to_string(),
+        Value::Time64(TimeUnit::Nanosecond, v) => NaiveTime::from_num_seconds_from_midnight_opt(
+            (v / 1_000_000_000) as u32,
+            (v % 1_000_000_000) as u32,
+        )
+        .unwrap()
+        .format("%H:%M:%S%.9f")
+        .to_string(),
+        Value::Time64(TimeUnit::Microsecond, v) => NaiveTime::from_num_seconds_from_midnight_opt(
+            (v / 1_000_1000) as u32,
+            (v % 1_000_1000) as u32,
+        )
+        .unwrap()
+        .format("%H:%M:%S%.6f")
+        .to_string(),
+        Value::Time64(TimeUnit::Millisecond, v) => {
+            NaiveTime::from_num_seconds_from_midnight_opt((v / 1_000) as u32, (v % 1_000) as u32)
+                .unwrap()
+                .format("%H:%M:%S%.3f")
+                .to_string()
+        }
+        Value::Time64(TimeUnit::Second, v) => {
+            NaiveTime::from_num_seconds_from_midnight_opt(*v as u32, 0)
+                .unwrap()
+                .format("%H:%M:%S%")
+                .to_string()
+        }
+        Value::Timestamp(TimeUnit::Nanosecond, v) => {
+            NaiveDateTime::from_timestamp_opt(v / 1_000_000_000, (v % 1_000_000_000) as u32)
+                .unwrap()
+                .format("%Y-%m-%d %H:%M:%S%.9f")
+                .to_string()
+        }
+        Value::Timestamp(TimeUnit::Microsecond, v) => {
+            NaiveDateTime::from_timestamp_opt(v / 1_000_000, (v % 1_000_000) as u32)
+                .unwrap()
+                .format("%Y-%m-%d %H:%M:%S%.6f")
+                .to_string()
+        }
+        Value::Timestamp(TimeUnit::Millisecond, v) => {
+            NaiveDateTime::from_timestamp_opt(v / 1_000, (v % 1_000) as u32)
+                .unwrap()
+                .format("%Y-%m-%d %H:%M:%S%.3f")
+                .to_string()
+        }
+        Value::Timestamp(TimeUnit::Second, v) => NaiveDateTime::from_timestamp_opt(*v, 0)
+            .unwrap()
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string(),
         Value::Text(v) => v.to_string(),
+        Value::Blob(v) => std::format!("{:?}", v),
         _ => format!("{:?}", cell),
     };
 
