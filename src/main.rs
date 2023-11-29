@@ -78,7 +78,7 @@ fn read_duck_data(filename: &str, col_num: usize) -> Result<Vec<Vec<Value>>> {
     Ok(table)
 }
 
-fn read_sqlite_tables(filename: &str) -> Result<Vec<String>> {
+fn read_sqlite_table_names(filename: &str) -> Result<Vec<String>> {
     let conn = Connection::open_in_memory()?;
     // load sqlite file
     let pre_sql = std::format!("CALL sqlite_attach({});", filename);
@@ -91,6 +91,60 @@ fn read_sqlite_tables(filename: &str) -> Result<Vec<String>> {
         .map(|row| row.unwrap())
         .collect();
     Ok(table_names)
+}
+
+fn read_sqlite_schema(filename: &str, table_name: &str) -> Result<Schema> {
+    let type_dict = HashMap::from([
+        ("BOOLEAN", "bool"),
+        ("TINYINT", "i8"),
+        ("SMALLINT", "i16"),
+        ("INTEGER", "i32"),
+        ("BIGINT", "i64"),
+        ("HUGEINT", "i128"),
+        ("UTINYINT", "u8"),
+        ("USMALLINT", "u16"),
+        ("UINTEGER", "u32"),
+        ("UBIGINT", "u64"),
+        ("REAL", "f32"),
+        ("DOUBLE", "f64"),
+        ("DECIMAL", "decimal"),
+        ("DATE", "i32"),
+        ("TIME", "time"),
+        ("TIMESTAMP", "datetime"),
+        ("VARCHAR", "utf8"),
+        ("BLOB", "Vec<u8>"),
+    ]);
+
+    let conn = Connection::open_in_memory()?;
+    let sql = std::format!(
+        "DESCRIBE SELECT * FROM sqlite_scan({}, '{}');",
+        filename,
+        table_name
+    );
+    let mut stmt = conn.prepare(&sql)?;
+    let mut rows = stmt.query([])?;
+
+    let mut schema = Schema {
+        column_names: Vec::new(),
+        column_types: Vec::new(),
+    };
+    while let Some(row) = rows.next()? {
+        schema.column_names.push(row.get::<_, String>(0)?);
+        schema.column_types.push(row.get::<_, String>(1)?);
+    }
+
+    schema.column_types = schema
+        .column_types
+        .into_iter()
+        .map(|item| {
+            type_dict
+                .get(item.as_str())
+                .unwrap_or(&item.as_str())
+                .to_string()
+        })
+        .collect();
+
+    Ok(schema)
 }
 
 fn test_table() {
@@ -245,6 +299,9 @@ fn main() {
     // recipe.on_button_pressed(button_pressed_handler(recipe_weak));
     // recipe.run().unwrap();
     // update_table();
-    let v = read_sqlite_tables("\"D:\\Dev\\sqlite-gui\\bookstore.sqlite\"");
+
+    let v = read_sqlite_table_names("\"D:\\Dev\\sqlite-gui\\bookstore.sqlite\"");
+    println!("{:?}", v);
+    let v = read_sqlite_schema("\"D:\\Dev\\sqlite-gui\\bookstore.sqlite\"", "books");
     println!("{:?}", v);
 }
