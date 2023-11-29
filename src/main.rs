@@ -166,6 +166,71 @@ fn read_sqlite_data(filename: &str, table_name: &str, col_num: usize) -> Result<
     Ok(table)
 }
 
+fn read_file_schema(filename: &str) -> Result<Schema> {
+    let type_dict = HashMap::from([
+        ("BOOLEAN", "bool"),
+        ("TINYINT", "i8"),
+        ("SMALLINT", "i16"),
+        ("INTEGER", "i32"),
+        ("BIGINT", "i64"),
+        ("HUGEINT", "i128"),
+        ("UTINYINT", "u8"),
+        ("USMALLINT", "u16"),
+        ("UINTEGER", "u32"),
+        ("UBIGINT", "u64"),
+        ("REAL", "f32"),
+        ("DOUBLE", "f64"),
+        ("DECIMAL", "decimal"),
+        ("DATE", "i32"),
+        ("TIME", "time"),
+        ("TIMESTAMP", "datetime"),
+        ("VARCHAR", "utf8"),
+        ("BLOB", "Vec<u8>"),
+    ]);
+
+    let conn = Connection::open_in_memory()?;
+    let sql = std::format!("DESCRIBE SELECT * FROM {};", filename);
+    let mut stmt = conn.prepare(&sql)?;
+    let mut rows = stmt.query([])?;
+
+    let mut schema = Schema {
+        column_names: Vec::new(),
+        column_types: Vec::new(),
+    };
+    while let Some(row) = rows.next()? {
+        schema.column_names.push(row.get::<_, String>(0)?);
+        schema.column_types.push(row.get::<_, String>(1)?);
+    }
+
+    schema.column_types = schema
+        .column_types
+        .into_iter()
+        .map(|item| {
+            type_dict
+                .get(item.as_str())
+                .unwrap_or(&item.as_str())
+                .to_string()
+        })
+        .collect();
+
+    Ok(schema)
+}
+
+fn read_file_data(filename: &str, col_num: usize) -> Result<Vec<Vec<Value>>> {
+    let conn = Connection::open_in_memory()?;
+    let data_sql = std::format!("SELECT * FROM {} LIMIT 10", filename);
+    let mut stmt = conn.prepare(&data_sql)?;
+    let mut rows = stmt.query([])?;
+
+    let mut table = Vec::new();
+    while let Some(row) = rows.next()? {
+        let row_data: Vec<Value> = (0..col_num).map(|i| row.get(i).unwrap()).collect();
+        table.push(row_data);
+    }
+
+    Ok(table)
+}
+
 fn test_table() {
     let path = FileDialog::new()
         .set_location("~")
@@ -319,15 +384,27 @@ fn main() {
     // recipe.run().unwrap();
     // update_table();
 
-    let v = read_sqlite_table_names("\"D:\\Dev\\sqlite-gui\\bookstore.sqlite\"");
-    println!("{:?}", v);
-    let v = read_sqlite_schema("\"D:\\Dev\\sqlite-gui\\bookstore.sqlite\"", "books");
+    // let v = read_sqlite_table_names("\"D:\\Dev\\sqlite-gui\\bookstore.sqlite\"");
+    // println!("{:?}", v);
+    // let v = read_sqlite_schema("\"D:\\Dev\\sqlite-gui\\bookstore.sqlite\"", "books");
+    // println!("{:?}", v);
+    // let col_num = v.unwrap().column_names.len();
+    // let v = read_sqlite_data(
+    //     "\"D:\\Dev\\sqlite-gui\\bookstore.sqlite\"",
+    //     "books",
+    //     col_num,
+    // );
+    // println!("{:?}", v);
+
+    // let v = read_file_schema("\"C:\\Users\\gewei\\Downloads\\order.json\"");
+    // println!("{:?}", v);
+    // let col_num = v.unwrap().column_names.len();
+    // let v = read_file_data("\"C:\\Users\\gewei\\Downloads\\order.json\"", col_num);
+    // println!("{:?}", v);
+
+    let v = read_file_schema("\"C:\\Users\\gewei\\Downloads\\SH-LDP.csv\"");
     println!("{:?}", v);
     let col_num = v.unwrap().column_names.len();
-    let v = read_sqlite_data(
-        "\"D:\\Dev\\sqlite-gui\\bookstore.sqlite\"",
-        "books",
-        col_num,
-    );
+    let v = read_file_data("\"C:\\Users\\gewei\\Downloads\\SH-LDP.csv\"", col_num);
     println!("{:?}", v);
 }
