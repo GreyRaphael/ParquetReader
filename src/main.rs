@@ -2,6 +2,7 @@
 slint::include_modules!();
 use arrow::{
     array::{self, Array},
+    csv,
     datatypes::{DataType, TimeUnit},
     record_batch::RecordBatch,
 };
@@ -9,8 +10,8 @@ use chrono::{NaiveDateTime, NaiveTime};
 use native_dialog;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use slint::{ModelRc, StandardListViewItem, TableColumn, VecModel};
-use std::rc::Rc;
 use std::{fs::File, io::Error};
+use std::{rc::Rc, sync::Arc};
 
 fn read_parquet(filename: &str, skip: usize, limit: usize) -> Result<RecordBatch, Error> {
     let file = File::open(filename).unwrap();
@@ -22,6 +23,22 @@ fn read_parquet(filename: &str, skip: usize, limit: usize) -> Result<RecordBatch
         .unwrap();
 
     let record_batch = reader.next().unwrap().unwrap();
+    Ok(record_batch)
+}
+
+fn read_csv(filename: &str, sep: usize, limit: usize) -> Result<RecordBatch, Error> {
+    let schema =
+        arrow_csv::reader::infer_schema_from_files(&[filename.to_string()], b';', Some(50), true)
+            .unwrap();
+
+    let file = File::open(filename).unwrap();
+    let mut csv_reader = csv::ReaderBuilder::new(Arc::new(schema))
+        .with_header(true)
+        .with_delimiter(b';')
+        .with_batch_size(limit)
+        .build(file)
+        .unwrap();
+    let record_batch = csv_reader.next().unwrap().unwrap();
     Ok(record_batch)
 }
 
