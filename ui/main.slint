@@ -1,9 +1,10 @@
 import { StandardTableView, Button, HorizontalBox} from "std-widgets.slint";
 
 export component Example inherits Window {
-    width: 1600px;
+    width: 2000px;
     height: 600px;
-    title: "parquet reader";
+    title: "Table Viewer";
+    icon: @image-url("./table.png");
     callback button_pressed<=>btn_open.clicked;
     in-out property <[TableColumn]> headers<=>tb1.columns;
     in-out property <[[StandardListViewItem]]> datas<=>tb1.rows;
