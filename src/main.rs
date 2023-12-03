@@ -1,348 +1,66 @@
 slint::include_modules!();
 
-use chrono::{NaiveDateTime, NaiveTime};
-use duckdb::{types::TimeUnit, types::Value, Connection, Result};
-use native_dialog::FileDialog;
+use polars::prelude::*;
 use slint::{StandardListViewItem, TableColumn, VecModel};
-use std::collections::HashMap;
 use std::rc::Rc;
 
-#[derive(Debug)]
-struct Schema {
-    column_names: Vec<String>,
-    column_types: Vec<String>,
+fn read_parquet(filename: &str, limit: usize) -> Result<DataFrame, PolarsError> {
+    let mut file = std::fs::File::open(filename)?;
+    ParquetReader::new(&mut file)
+        .with_n_rows(Some(limit))
+        .finish()
 }
 
-fn read_duck_schema(filename: &str) -> Result<Schema> {
-    let type_dict = HashMap::from([
-        ("BOOLEAN", "bool"),
-        ("TINYINT", "i8"),
-        ("SMALLINT", "i16"),
-        ("INTEGER", "i32"),
-        ("BIGINT", "i64"),
-        ("HUGEINT", "i128"),
-        ("UTINYINT", "u8"),
-        ("USMALLINT", "u16"),
-        ("UINTEGER", "u32"),
-        ("UBIGINT", "u64"),
-        ("REAL", "f32"),
-        ("DOUBLE", "f64"),
-        ("DECIMAL", "decimal"),
-        ("DATE", "i32"),
-        ("TIME", "time"),
-        ("TIMESTAMP", "datetime"),
-        ("VARCHAR", "utf8"),
-        ("BLOB", "Vec<u8>"),
-    ]);
-
-    let conn = Connection::open_in_memory()?;
-    let schema_sql = std::format!("DESCRIBE SELECT * FROM {};", filename);
-    let mut stmt = conn.prepare(&schema_sql)?;
-    let mut rows = stmt.query([])?;
-
-    let mut schema = Schema {
-        column_names: Vec::new(),
-        column_types: Vec::new(),
-    };
-    while let Some(row) = rows.next()? {
-        schema.column_names.push(row.get::<_, String>(0)?);
-        schema.column_types.push(row.get::<_, String>(1)?);
-    }
-
-    schema.column_types = schema
-        .column_types
-        .into_iter()
-        .map(|item| {
-            type_dict
-                .get(item.as_str())
-                .unwrap_or(&item.as_str())
-                .to_string()
-        })
-        .collect();
-
-    Ok(schema)
+fn read_csv(filename: &str, sep: u8, limit: usize) -> Result<DataFrame, PolarsError> {
+    CsvReader::from_path(filename)?
+        .with_separator(sep)
+        .with_n_rows(Some(limit))
+        .finish()
 }
 
-fn read_duck_data(filename: &str, col_num: usize) -> Result<Vec<Vec<Value>>> {
-    let conn = Connection::open_in_memory()?;
-    let data_sql = std::format!("SELECT * FROM {} LIMIT 10", filename);
-    let mut stmt = conn.prepare(&data_sql)?;
-    let mut rows = stmt.query([])?;
-
-    let mut table = Vec::new();
-    while let Some(row) = rows.next()? {
-        let row_data: Vec<Value> = (0..col_num).map(|i| row.get(i).unwrap()).collect();
-        table.push(row_data);
-    }
-
-    Ok(table)
+fn read_json(filename: &str, limit: usize) -> Result<DataFrame, PolarsError> {
+    let mut file = std::fs::File::open(filename)?;
+    Ok(JsonReader::new(&mut file).finish()?.head(Some(limit)))
 }
 
-fn read_sqlite_table_names(filename: &str) -> Result<Vec<String>> {
-    let conn = Connection::open_in_memory()?;
-    // load sqlite file
-    let pre_sql = std::format!("CALL sqlite_attach({});", filename);
-    conn.execute(&pre_sql, [])?;
-    // show all tables in sqlite
-    let mut stmt = conn.prepare("PRAGMA show_tables;")?;
-
-    let table_names = stmt
-        .query_map([], |row| Ok(row.get::<_, String>(0)?))?
-        .map(|row| row.unwrap())
-        .collect();
-    Ok(table_names)
+fn query_dataframe(df: &DataFrame, sql_str: &str) -> Result<DataFrame, PolarsError> {
+    let mut ctx = polars::sql::SQLContext::new();
+    ctx.register("CURRENT", df.clone().lazy());
+    ctx.execute(sql_str).unwrap().collect()
 }
 
-fn read_sqlite_schema(filename: &str, table_name: &str) -> Result<Schema> {
-    let type_dict = HashMap::from([
-        ("BOOLEAN", "bool"),
-        ("TINYINT", "i8"),
-        ("SMALLINT", "i16"),
-        ("INTEGER", "i32"),
-        ("BIGINT", "i64"),
-        ("HUGEINT", "i128"),
-        ("UTINYINT", "u8"),
-        ("USMALLINT", "u16"),
-        ("UINTEGER", "u32"),
-        ("UBIGINT", "u64"),
-        ("REAL", "f32"),
-        ("DOUBLE", "f64"),
-        ("DECIMAL", "decimal"),
-        ("DATE", "i32"),
-        ("TIME", "time"),
-        ("TIMESTAMP", "datetime"),
-        ("VARCHAR", "utf8"),
-        ("BLOB", "Vec<u8>"),
-    ]);
-
-    let conn = Connection::open_in_memory()?;
-    let sql = std::format!(
-        "DESCRIBE SELECT * FROM sqlite_scan({}, '{}');",
-        filename,
-        table_name
-    );
-    let mut stmt = conn.prepare(&sql)?;
-    let mut rows = stmt.query([])?;
-
-    let mut schema = Schema {
-        column_names: Vec::new(),
-        column_types: Vec::new(),
-    };
-    while let Some(row) = rows.next()? {
-        schema.column_names.push(row.get::<_, String>(0)?);
-        schema.column_types.push(row.get::<_, String>(1)?);
-    }
-
-    schema.column_types = schema
-        .column_types
-        .into_iter()
-        .map(|item| {
-            type_dict
-                .get(item.as_str())
-                .unwrap_or(&item.as_str())
-                .to_string()
-        })
-        .collect();
-
-    Ok(schema)
-}
-
-fn read_sqlite_data(filename: &str, table_name: &str, col_num: usize) -> Result<Vec<Vec<Value>>> {
-    let conn = Connection::open_in_memory()?;
-    let data_sql = std::format!(
-        "SELECT * FROM sqlite_scan({},'{}') LIMIT 10",
-        filename,
-        table_name
-    );
-    let mut stmt = conn.prepare(&data_sql)?;
-    let mut rows = stmt.query([])?;
-
-    let mut table = Vec::new();
-    while let Some(row) = rows.next()? {
-        let row_data: Vec<Value> = (0..col_num).map(|i| row.get(i).unwrap()).collect();
-        table.push(row_data);
-    }
-
-    Ok(table)
+fn openfile_name() -> Result<Option<std::path::PathBuf>, native_dialog::Error> {
+    native_dialog::FileDialog::new()
+        .reset_location()
+        .add_filter("table file", &["parquet", "csv", "json"])
+        .show_open_single_file()
 }
 
 fn test_table() {
-    let path = FileDialog::new()
-        .set_location("~")
-        .add_filter("parquet file", &["parquet"])
-        .show_open_single_file()
-        .unwrap();
+    if let Some(path_buf) = openfile_name().unwrap() {
+        let df: DataFrame;
+        let filename = path_buf.to_string_lossy().into_owned();
+        let file_extension = path_buf.extension().and_then(std::ffi::OsStr::to_str);
 
-    let path = match path {
-        Some(path) => path,
-        None => return,
-    };
-
-    let filename = format!("{:#?}", path);
-    print!("filename: {}\n", filename);
-    let schema = read_duck_schema(&filename).unwrap();
-    println!("{:?}", schema);
-    let table = read_duck_data(&filename, schema.column_names.len()).unwrap();
-    println!("{:?}", table);
-}
-
-fn button_pressed_handler(recipe_weak: slint::Weak<Example>) -> impl Fn() {
-    move || {
-        // open dialog
-        let path = FileDialog::new()
-            .set_location("~")
-            .add_filter("table file", &["parquet", "csv", "json"])
-            .add_filter("all files", &["*"])
-            .show_open_single_file()
-            .unwrap();
-
-        let path = match path {
-            Some(path) => path,
-            None => return,
-        };
-
-        // read file
-        let filename = format!("{:#?}", path);
-        let schema = read_duck_schema(&filename).unwrap();
-        println!("{:?}", schema);
-        let col_num = schema.column_names.len();
-        let table = read_duck_data(&filename, col_num).unwrap();
-        println!("{:?}", table);
-
-        // init handler
-        let recipe = recipe_weak.upgrade().unwrap();
-
-        // fill data
-        let datas = Rc::new(VecModel::default());
-        for row in table {
-            let items = Rc::new(VecModel::default());
-            for cell in row {
-                let item = create_list_view_item(&cell);
-                items.push(item);
-            }
-            datas.push(items.into());
+        if file_extension == Some("csv") {
+            df = read_csv(&filename, b';', 10).unwrap();
+        } else if file_extension == Some("parquet") {
+            df = read_parquet(&filename, 10).unwrap();
+        } else if file_extension == Some("json") {
+            df = read_json(&filename, 10).unwrap();
+        } else {
+            df = DataFrame::empty();
         }
-        recipe.set_datas(datas.into());
-
-        let headers = Rc::new(VecModel::default());
-        for i in 0..col_num {
-            let mut header = TableColumn::default();
-            header.title = slint::format!("{}({})", schema.column_names[i], schema.column_types[i]);
-            header.min_width = 80.0;
-            headers.push(header);
-        }
-        recipe.set_headers(headers.into());
+        println!("{}", df);
+        let sqled_df = query_dataframe(&df, "SELECT * FROM CURRENT WHERE 成交数量	> 100").unwrap();
+        println!("{}", sqled_df);
     }
 }
 
-fn create_list_view_item(cell: &Value) -> StandardListViewItem {
-    let formatted_value = match cell {
-        Value::Boolean(v) => v.to_string(),
-        Value::TinyInt(v) => v.to_string(),
-        Value::SmallInt(v) => v.to_string(),
-        Value::Int(v) => v.to_string(),
-        Value::BigInt(v) => v.to_string(),
-        Value::HugeInt(v) => v.to_string(),
-        Value::UTinyInt(v) => v.to_string(),
-        Value::USmallInt(v) => v.to_string(),
-        Value::UInt(v) => v.to_string(),
-        Value::UBigInt(v) => v.to_string(),
-        Value::Float(v) => v.to_string(),
-        Value::Double(v) => v.to_string(),
-        Value::Decimal(v) => v.to_string(),
-
-        Value::Date32(v) => NaiveDateTime::from_timestamp_opt((v * 24 * 3600) as i64, 0)
-            .unwrap()
-            .date()
-            .to_string(),
-        Value::Time64(TimeUnit::Nanosecond, v) => NaiveTime::from_num_seconds_from_midnight_opt(
-            (v / 1_000_000_000) as u32,
-            (v % 1_000_000_000) as u32,
-        )
-        .unwrap()
-        .format("%H:%M:%S%.9f")
-        .to_string(),
-        Value::Time64(TimeUnit::Microsecond, v) => NaiveTime::from_num_seconds_from_midnight_opt(
-            (v / 1_000_000) as u32,
-            (v * 1_000 % 1_000_000_000) as u32,
-        )
-        .unwrap()
-        .format("%H:%M:%S%.6f")
-        .to_string(),
-        Value::Time64(TimeUnit::Millisecond, v) => NaiveTime::from_num_seconds_from_midnight_opt(
-            (v / 1_000) as u32,
-            (v * 1_000_000 % 1_000_000_000) as u32,
-        )
-        .unwrap()
-        .format("%H:%M:%S%.3f")
-        .to_string(),
-        Value::Time64(TimeUnit::Second, v) => {
-            NaiveTime::from_num_seconds_from_midnight_opt(*v as u32, 0)
-                .unwrap()
-                .format("%H:%M:%S%")
-                .to_string()
-        }
-        Value::Timestamp(TimeUnit::Nanosecond, v) => {
-            let seconds: i64;
-            let nanos: u32;
-            if *v < 0 {
-                seconds = v / 1_000_000_000;
-                nanos = (v % 1_000_000_000) as u32;
-            } else {
-                seconds = v / 1_000_000_000 - 1;
-                nanos = (v % 1000000000 + 1000000000) as u32
-            }
-            NaiveDateTime::from_timestamp_opt(seconds, nanos)
-                .unwrap()
-                .format("%Y-%m-%d %H:%M:%S%.9f")
-                .to_string()
-        }
-        Value::Timestamp(TimeUnit::Microsecond, v) => NaiveDateTime::from_timestamp_micros(*v)
-            .unwrap()
-            .format("%Y-%m-%d %H:%M:%S%.6f")
-            .to_string(),
-        Value::Timestamp(TimeUnit::Millisecond, v) => NaiveDateTime::from_timestamp_millis(*v)
-            .unwrap()
-            .format("%Y-%m-%d %H:%M:%S%.3f")
-            .to_string(),
-        Value::Timestamp(TimeUnit::Second, v) => NaiveDateTime::from_timestamp_opt(*v, 0)
-            .unwrap()
-            .format("%Y-%m-%d %H:%M:%S")
-            .to_string(),
-        Value::Text(v) => v.to_string(),
-        Value::Blob(v) => std::format!("{:?}", v),
-        _ => format!("{:?}", cell),
-    };
-
-    StandardListViewItem::from(slint::format!("{}", formatted_value))
-}
-
 fn main() {
-    let recipe = Example::new().unwrap();
-    let recipe_weak = recipe.as_weak();
-    recipe.on_button_pressed(button_pressed_handler(recipe_weak));
-    recipe.run().unwrap();
-    // update_table();
-
-    // let v = read_sqlite_table_names("\"D:\\Dev\\sqlite-gui\\bookstore.sqlite\"");
-    // println!("{:?}", v);
-    // let v = read_sqlite_schema("\"D:\\Dev\\sqlite-gui\\bookstore.sqlite\"", "books");
-    // println!("{:?}", v);
-    // let col_num = v.unwrap().column_names.len();
-    // let v = read_sqlite_data(
-    //     "\"D:\\Dev\\sqlite-gui\\bookstore.sqlite\"",
-    //     "books",
-    //     col_num,
-    // );
-    // println!("{:?}", v);
-
-    // let v = read_file_schema("\"C:\\Users\\gewei\\Downloads\\order.parquet\"");
-    // let v = read_file_schema("\"C:\\Users\\gewei\\Downloads\\order.json\"");
-    // let v = read_file_schema("\"C:\\Users\\gewei\\Downloads\\order.csv\"");
-    // println!("{:?}", v);
-    // let col_num = v.unwrap().column_names.len();
-    // let v = read_file_data("\"C:\\Users\\gewei\\Downloads\\order.parquet\"", col_num);
-    // let v = read_file_data("\"C:\\Users\\gewei\\Downloads\\order.json\"", col_num);
-    // let v = read_file_data("\"C:\\Users\\gewei\\Downloads\\order.csv\"", col_num);
-    // println!("{:?}", v);
+    // let recipe = Example::new().unwrap();
+    // let recipe_weak = recipe.as_weak();
+    // recipe.on_button_pressed(button_pressed_handler(recipe_weak));
+    // recipe.run().unwrap();
+    test_table();
 }
