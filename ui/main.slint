@@ -1,8 +1,8 @@
-import { StandardTableView, Button, HorizontalBox} from "std-widgets.slint";
+import { StandardTableView, Button, HorizontalBox,LineEdit} from "std-widgets.slint";
 
 export component Example inherits Window {
-    width: 2000px;
-    height: 600px;
+    preferred-width: 1200px;
+    preferred-height: 800px;
     title: "Table Viewer";
     icon: @image-url("./table.png");
     callback button_pressed<=>btn_open.clicked;
@@ -23,10 +23,11 @@ export component Example inherits Window {
             tb1.rows=[];
           }
         }
+        text-edit := LineEdit {
+          visible: false;
+      }
       }
       tb1:=StandardTableView {
-        width: root.width;
-        height: root.height;
         columns: [
             { title: "Header 1" },
             { title: "Header 2" },
