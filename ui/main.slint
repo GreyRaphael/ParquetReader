@@ -23,9 +23,7 @@ export component Example inherits Window {
             tb1.rows=[];
           }
         }
-        text-edit := LineEdit {
-          visible: false;
-      }
+        Rectangle {visible: false;} // for element stretchable
       }
       tb1:=StandardTableView {
         columns: [
@@ -40,6 +38,6 @@ export component Example inherits Window {
           [{text:"value1"},{text:"value1"},{text:"value1"},{text:"value1"},],
           [{text:"value1"},{text:"value1"},{text:"value1"},{text:"value1"},],
         ];
-    }
+      }
     }
 }
