@@ -74,8 +74,8 @@ fn generate_headers(df: &DataFrame) -> Rc<VecModel<TableColumn>> {
     let headers = Rc::new(VecModel::default());
     for (_, (col_name, col_type)) in it.enumerate() {
         let mut header = TableColumn::default();
-        header.title = slint::format!("{}({})", col_name, col_type);
-        header.min_width = 100.0;
+        header.title = slint::format!("{}\n({})", col_name, col_type);
+        // header.min_width = 100.0;
         // println!("{:?}", header);
         headers.push(header);
     }
@@ -106,11 +106,11 @@ fn button_pressed_handler(recipe_weak: slint::Weak<Example>) -> impl Fn() {
             let file_extension = path_buf.extension().and_then(std::ffi::OsStr::to_str);
 
             if file_extension == Some("csv") {
-                df = read_csv(&filename, b';', 10).unwrap();
+                df = read_csv(&filename, b';', 100).unwrap();
             } else if file_extension == Some("parquet") {
-                df = read_parquet(&filename, 10).unwrap();
+                df = read_parquet(&filename, 100).unwrap();
             } else if file_extension == Some("json") {
-                df = read_json(&filename, 10).unwrap();
+                df = read_json(&filename, 100).unwrap();
             } else {
                 df = DataFrame::empty();
             }
